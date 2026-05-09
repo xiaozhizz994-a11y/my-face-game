@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>粒子人脸 · 实时特效</title>
+  <meta name="description" content="通过摄像头识别人脸，粒子实时汇聚成你的面部轮廓">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <meta property="og:title" content="粒子人脸 · 实时特效">
+  <meta property="og:description" content="将你的脸变成动态粒子艺术">
+  <meta property="og:type" content="website">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
@@ -20,39 +27,43 @@
       transition:opacity .8s,transform .8s;
     }
     #ui.hidden { opacity:0; transform:scale(1.1); pointer-events:none; }
-    .logo { font-size:52px; margin-bottom:8px; filter:drop-shadow(0 0 30px rgba(100,130,255,.3)); animation:float 3s ease-in-out infinite; }
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-    h1 { font-size:26px; font-weight:700; margin-bottom:6px; background:linear-gradient(135deg,#667eea,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .subtitle { color:rgba(255,255,255,.4); font-size:13px; margin-bottom:36px; letter-spacing:2px; }
+    .logo { font-size:64px; margin-bottom:10px; filter:drop-shadow(0 0 30px rgba(100,130,255,.4)); animation:float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    h1 { font-size:28px; font-weight:700; margin-bottom:4px; background:linear-gradient(135deg,#667eea,#a855f7,#ec4899); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:200%; animation:gradient 4s ease infinite; }
+    @keyframes gradient { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+    .subtitle { color:rgba(255,255,255,.35); font-size:13px; margin-bottom:40px; letter-spacing:3px; font-weight:300; }
     #startBtn {
-      padding:16px 48px; font-size:18px; font-weight:600; border:2px solid rgba(102,126,234,.5);
+      padding:16px 52px; font-size:18px; font-weight:600; border:none;
       border-radius:50px; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff;
       cursor:pointer; transition:all .3s; box-shadow:0 8px 32px rgba(102,126,234,.3);
-      position:relative; overflow:hidden;
+      position:relative; overflow:hidden; letter-spacing:1px;
     }
-    #startBtn::after {
-      content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%;
-      background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.1) 50%,transparent 60%);
-      animation:shimmer 3s infinite;
-    }
-    @keyframes shimmer { 0%{transform:translateX(-100%) rotate(45deg)} 100%{transform:translateX(100%) rotate(45deg)} }
-    #startBtn:active{transform:scale(.96)}
-    #startBtn:disabled{opacity:.5;transform:none}
-    .status{color:rgba(255,255,255,.5);font-size:13px;margin-top:20px;text-align:center;line-height:1.8;padding:0 20px}
-    .status .hl{color:rgba(100,180,255,.8)}
-    #loadWrap{width:200px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:12px;overflow:hidden;display:none}
+    #startBtn:active{transform:scale(.95)}
+    #startBtn:disabled{opacity:.5;transform:none;cursor:default}
+    .status{color:rgba(255,255,255,.45);font-size:13px;margin-top:22px;text-align:center;line-height:1.8;padding:0 24px;max-width:320px}
+    .status .hl{color:rgba(130,200,255,.9);font-weight:600}
+    #loadWrap{width:200px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:14px;overflow:hidden;display:none}
     #loadBar{height:100%;width:0%;background:linear-gradient(90deg,#667eea,#a855f7);border-radius:2px;transition:width .3s}
-    #hud{position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:5;padding:12px 16px;display:flex;justify-content:space-between;opacity:0;transition:opacity .5s}
+    #hud{position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:5;padding:14px 18px;display:flex;justify-content:space-between;opacity:0;transition:opacity .5s}
     #hud.show{opacity:1}
-    .hud-item{color:rgba(255,255,255,.3);font-size:11px;font-family:monospace}
-    #hint{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);color:rgba(255,255,255,.25);font-size:12px;z-index:5;text-align:center;letter-spacing:1px;opacity:0;transition:opacity .5s;white-space:nowrap}
+    .hud-item{color:rgba(255,255,255,.25);font-size:11px;font-family:monospace;text-shadow:0 0 8px rgba(0,0,0,.5)}
+    #hint{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);color:rgba(255,255,255,.2);font-size:12px;z-index:5;text-align:center;letter-spacing:1px;opacity:0;transition:opacity .5s;white-space:nowrap;text-shadow:0 0 8px rgba(0,0,0,.5)}
     #hint.show{opacity:1}
-    @media(max-width:360px){h1{font-size:22px}#startBtn{padding:14px 36px;font-size:16px}}
+    @media(max-width:360px){h1{font-size:23px}.logo{font-size:50px}#startBtn{padding:14px 40px;font-size:16px}}
+    @media(prefers-color-scheme:light){#ui{background:radial-gradient(ellipse at center,#1a1a3e,#000)}}
+    #errorToast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:16px;padding:28px 24px;max-width:300px;text-align:center;color:#fff;display:none;border:1px solid rgba(255,255,255,.06)}
+    #errorToast.show{display:block}
+    #errorToast .err-icon{font-size:36px;margin-bottom:10px}
+    #errorToast .err-title{font-size:16px;font-weight:600;margin-bottom:6px}
+    #errorToast .err-msg{font-size:13px;color:rgba(255,255,255,.5);line-height:1.6}
+    #errorToast .err-btn{margin-top:16px;padding:10px 28px;border:none;border-radius:24px;background:rgba(255,255,255,.1);color:#fff;font-size:14px;cursor:pointer;transition:background .2s}
+    #errorToast .err-btn:active{background:rgba(255,255,255,.2)}
   </style>
 </head>
 <body>
   <video id="video" playsinline muted></video>
   <canvas id="canvas"></canvas>
+  
   <div id="ui">
     <div class="logo">✦</div>
     <h1>粒子人脸</h1>
@@ -61,11 +72,19 @@
     <div class="status" id="statusMsg">点击上方按钮 · 允许摄像头权限<br>将你的脸变成<b class="hl">动态粒子艺术</b></div>
     <div id="loadWrap"><div id="loadBar"></div></div>
   </div>
+  
   <div id="hud">
     <span class="hud-item" id="fpsDisplay">-- FPS</span>
     <span class="hud-item" id="particleDisplay">-- 粒子</span>
   </div>
   <div id="hint">✦ 粒子跟随人脸实时变化 ✦</div>
+
+  <div id="errorToast">
+    <div class="err-icon">⚠️</div>
+    <div class="err-title" id="errTitle">出错了</div>
+    <div class="err-msg" id="errMsg"></div>
+    <button class="err-btn" onclick="location.reload()">刷新页面</button>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
@@ -75,13 +94,28 @@
   <script>
     (function(){
       'use strict';
-      const v=document.getElementById('video'), c=document.getElementById('canvas'), ctx=c.getContext('2d');
-      const ui=document.getElementById('ui'), startBtn=document.getElementById('startBtn');
-      const statusMsg=document.getElementById('statusMsg'), loadWrap=document.getElementById('loadWrap'), loadBar=document.getElementById('loadBar');
-      const fpsD=document.getElementById('fpsDisplay'), particleD=document.getElementById('particleDisplay');
-      const hint=document.getElementById('hint'), hud=document.getElementById('hud');
-      let detector=null, runId=null, running=false, pts=[], tgt=[], faceDetected=false, noFaceCount=0, w, h;
-      const COUNT=3000, SPEED=0.04;
+      const v=document.getElementById('video');
+      const c=document.getElementById('canvas');
+      const ctx=c.getContext('2d');
+      const ui=document.getElementById('ui');
+      const startBtn=document.getElementById('startBtn');
+      const statusMsg=document.getElementById('statusMsg');
+      const loadWrap=document.getElementById('loadWrap');
+      const loadBar=document.getElementById('loadBar');
+      const fpsD=document.getElementById('fpsDisplay');
+      const particleD=document.getElementById('particleDisplay');
+      const hint=document.getElementById('hint');
+      const hud=document.getElementById('hud');
+      const errToast=document.getElementById('errorToast');
+      const errTitle=document.getElementById('errTitle');
+      const errMsg=document.getElementById('errMsg');
+
+      let detector=null, runId=null, running=false;
+      let pts=[], tgt=[];
+      let faceDetected=false, noFaceCount=0;
+      let w, h;
+      const COUNT=3000;
+      const SPEED=0.04;
 
       function resize(){
         const dpr=Math.min(devicePixelRatio||1,2);
@@ -91,7 +125,7 @@
         ctx.setTransform(dpr,0,0,dpr,0,0);
       }
       addEventListener('resize',resize);
-      addEventListener('orientationchange',()=>setTimeout(resize,300));
+      addEventListener('orientationchange',()=>setTimeout(resize,400));
       resize();
 
       function makeParticles(){
@@ -103,7 +137,20 @@
       }
       function spreadTargets(){tgt=[];for(let i=0;i<COUNT;i++)tgt.push({x:Math.random()*w,y:Math.random()*h});faceDetected=false;}
 
-      const FACE_KEYS=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10,66,70,63,105,66,107,55,65,52,53,46,70,63,105,104,158,157,173,133,155,154,153,145,144,163,7,263,249,390,373,374,380,381,382,362,263,33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,33,362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398,362,61,146,91,181,84,17,314,405,321,375,291,308,324,318,402,317,14,87,178,88,95,78,191,80,81,82,13,312,311,310,415,308,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67];
+      const FACE_KEYS=[
+        10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,
+        152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10,
+        66,70,63,105,66,107,55,65,52,53,46,
+        70,63,105,104,158,157,173,133,155,154,153,145,144,163,7,
+        263,249,390,373,374,380,381,382,362,263,
+        33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,33,
+        362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398,362,
+        61,146,91,181,84,17,314,405,321,375,291,308,324,318,402,317,14,87,178,88,95,
+        78,191,80,81,82,13,312,311,310,415,308,
+        0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
+        18,19,20,21,22,23,24,25,26,27,
+        47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,
+      ];
 
       function getFacePoints(landmarks){
         const res=[];
@@ -148,20 +195,21 @@
         const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*.6);
         g.addColorStop(0,'#0a0a1e');g.addColorStop(1,'#000003');
         ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-        if(!faceDetected&&running){ctx.fillStyle='rgba(255,255,255,.06)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('请将脸对准摄像头',w/2,h/2-20);}
+        if(!faceDetected&&running){ctx.save();ctx.fillStyle='rgba(255,255,255,.06)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('请将脸对准摄像头',w/2,h/2-20);ctx.restore();}
         for(let i=0;i<pts.length;i++){
           const p=pts[i],t=tgt[i]||{x:w/2,y:h/2},dx=t.x-p.x,dy=t.y-p.y,dist=Math.sqrt(dx*dx+dy*dy);
           if(dist>.5){const s=p.sp*SPEED,nx=Math.sin(time*.001+p.ns)*.2,ny=Math.cos(time*.001+p.ns)*.2;p.x+=(dx/(dist+1))*s+nx;p.y+=(dy/(dist+1))*s+ny;}
-          else{p.x+=Math.sin(time*.002+p.ph)*.1;p.y+=Math.cos(time*.002+p.ph)*.1;}
+          else{p.x+=Math.sin(time*.002+p.ph)*.12;p.y+=Math.cos(time*.002+p.ph)*.12;}
           ctx.globalAlpha=faceDetected?.85:.25;
           ctx.fillStyle=`hsla(${p.hue+Math.sin(time*.0005+p.ph)*5},${p.sat}%,${p.lig+Math.sin(time*.001+p.ph)*8}%,.85)`;
           ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fill();
-          if(faceDetected&&i%12===0&&dist<.8){
-            ctx.globalAlpha=.025;ctx.strokeStyle=`hsla(${p.hue},${p.sat}%,${p.lig}%,.3)`;ctx.lineWidth=.4;
-            for(let j=i+1;j<Math.min(i+15,pts.length);j+=2){const p2=pts[j],d2x=p2.x-p.x,d2y=p2.y-p.y;if(d2x*d2x+d2y*d2y<30){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();}}
+          if(faceDetected&&i%15===0&&dist<.8){
+            ctx.globalAlpha=.02;ctx.strokeStyle=`hsla(${p.hue},${p.sat}%,${p.lig}%,.3)`;ctx.lineWidth=.4;
+            for(let j=i+1;j<Math.min(i+20,pts.length);j+=3){const p2=pts[j],d2x=p2.x-p.x,d2y=p2.y-p.y;if(d2x*d2x+d2y*d2y<35){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();}}
           }
         }
-        ctx.globalAlpha=1;if(faceDetected)particleD.textContent=`${pts.length} 粒子`;
+        ctx.globalAlpha=1;
+        if(faceDetected)particleD.textContent=`${pts.length} 粒子`;
       }
 
       let frameCnt=0,lastFpsTime=0;
@@ -181,9 +229,11 @@
           }
           draw(time);frameCnt++;
           if(time-lastFpsTime>=1000){fpsD.textContent=`${frameCnt} FPS`;frameCnt=0;lastFpsTime=time;}
-        }catch(e){draw(time);}
+        }catch(e){console.warn(e);draw(time);}
         runId=requestAnimationFrame(loop);
       }
+
+      function showError(title,msg){errTitle.textContent=title;errMsg.textContent=msg;errToast.classList.add('show');}
 
       async function start(){
         try{
@@ -191,21 +241,26 @@
           const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
           v.srcObject=stream;
           await new Promise(r=>{v.onloadedmetadata=()=>{v.play();r()};});
-          statusMsg.innerHTML='正在加载人脸模型...';loadWrap.style.display='block';
-          let prog=0;const progInt=setInterval(()=>{if(prog<85){prog+=Math.random()*12;loadBar.style.width=Math.min(prog,85)+'%';}},200);
+          statusMsg.innerHTML='正在加载人脸检测模型...<br><span style="font-size:11px;opacity:.6">首次加载约需5-10秒</span>';
+          loadWrap.style.display='block';
+          let prog=0;
+          const progInt=setInterval(()=>{if(prog<80){prog+=Math.random()*10;loadBar.style.width=Math.min(prog,80)+'%';}},200);
           detector=await faceLandmarksDetection.createDetector(faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,{runtime:'mediapipe',solutionPath:'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633550819',maxFaces:1});
-          clearInterval(progInt);loadBar.style.width='100%';await new Promise(r=>setTimeout(r,300));
+          clearInterval(progInt);loadBar.style.width='100%';await new Promise(r=>setTimeout(r,400));
           ui.classList.add('hidden');hud.classList.add('show');hint.classList.add('show');
           makeParticles();spreadTargets();running=true;lastFpsTime=performance.now();runId=requestAnimationFrame(loop);
         }catch(e){
-          console.error(e);startBtn.disabled=false;startBtn.textContent='📷 重试';
-          if(e.name==='NotAllowedError')statusMsg.innerHTML='摄像头权限被拒绝<br>请在 Safari 设置中开启摄像头权限';
-          else if(e.name==='NotFoundError')statusMsg.innerHTML='未找到摄像头设备';
-          else statusMsg.innerHTML='启动失败: '+e.message;
-          loadWrap.style.display='none';
+          console.error('start failed:',e);
+          startBtn.disabled=false;startBtn.textContent='📷 重试';loadWrap.style.display='none';
+          if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError')statusMsg.innerHTML='❌ 摄像头权限被拒绝<br><span style="font-size:11px;opacity:.6">请在浏览器设置中允许摄像头权限</span>';
+          else if(e.name==='NotFoundError'||e.name==='DevicesNotFoundError')statusMsg.innerHTML='❌ 未找到摄像头设备';
+          else if(e.name==='NotReadableError')statusMsg.innerHTML='❌ 摄像头被其他应用占用';
+          else statusMsg.innerHTML='❌ 启动失败<br><span style="font-size:11px;opacity:.6">'+(e.message||'未知错误')+'</span>';
         }
       }
       startBtn.addEventListener('click',start);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden&&running&&!runId)runId=requestAnimationFrame(loop);});
+      console.log('✦ 粒子人脸已加载');
     })();
   </script>
 </body>
