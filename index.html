@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>粒子人脸 · 实时特效</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#000; overflow:hidden; font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+      touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none;
+      width:100vw; height:100dvh;
+    }
+    video { position:fixed; top:0; left:0; width:100%; height:100%; object-fit:cover; opacity:0; }
+    canvas { position:fixed; top:0; left:0; width:100%; height:100%; touch-action:none; }
+    #ui {
+      position:fixed; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; z-index:10;
+      background:radial-gradient(ellipse at center,#0a0a2e,#000);
+      transition:opacity .8s,transform .8s;
+    }
+    #ui.hidden { opacity:0; transform:scale(1.1); pointer-events:none; }
+    .logo { font-size:52px; margin-bottom:8px; filter:drop-shadow(0 0 30px rgba(100,130,255,.3)); animation:float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    h1 { font-size:26px; font-weight:700; margin-bottom:6px; background:linear-gradient(135deg,#667eea,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .subtitle { color:rgba(255,255,255,.4); font-size:13px; margin-bottom:36px; letter-spacing:2px; }
+    #startBtn {
+      padding:16px 48px; font-size:18px; font-weight:600; border:2px solid rgba(102,126,234,.5);
+      border-radius:50px; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff;
+      cursor:pointer; transition:all .3s; box-shadow:0 8px 32px rgba(102,126,234,.3);
+      position:relative; overflow:hidden;
+    }
+    #startBtn::after {
+      content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%;
+      background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.1) 50%,transparent 60%);
+      animation:shimmer 3s infinite;
+    }
+    @keyframes shimmer { 0%{transform:translateX(-100%) rotate(45deg)} 100%{transform:translateX(100%) rotate(45deg)} }
+    #startBtn:active{transform:scale(.96)}
+    #startBtn:disabled{opacity:.5;transform:none}
+    .status{color:rgba(255,255,255,.5);font-size:13px;margin-top:20px;text-align:center;line-height:1.8;padding:0 20px}
+    .status .hl{color:rgba(100,180,255,.8)}
+    #loadWrap{width:200px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:12px;overflow:hidden;display:none}
+    #loadBar{height:100%;width:0%;background:linear-gradient(90deg,#667eea,#a855f7);border-radius:2px;transition:width .3s}
+    #hud{position:fixed;top:0;left:0;width:100%;pointer-events:none;z-index:5;padding:12px 16px;display:flex;justify-content:space-between;opacity:0;transition:opacity .5s}
+    #hud.show{opacity:1}
+    .hud-item{color:rgba(255,255,255,.3);font-size:11px;font-family:monospace}
+    #hint{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);color:rgba(255,255,255,.25);font-size:12px;z-index:5;text-align:center;letter-spacing:1px;opacity:0;transition:opacity .5s;white-space:nowrap}
+    #hint.show{opacity:1}
+    @media(max-width:360px){h1{font-size:22px}#startBtn{padding:14px 36px;font-size:16px}}
+  </style>
+</head>
+<body>
+  <video id="video" playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="ui">
+    <div class="logo">✦</div>
+    <h1>粒子人脸</h1>
+    <div class="subtitle">REAL-TIME FACE PARTICLES</div>
+    <button id="startBtn">📷 开始体验</button>
+    <div class="status" id="statusMsg">点击上方按钮 · 允许摄像头权限<br>将你的脸变成<b class="hl">动态粒子艺术</b></div>
+    <div id="loadWrap"><div id="loadBar"></div></div>
+  </div>
+  <div id="hud">
+    <span class="hud-item" id="fpsDisplay">-- FPS</span>
+    <span class="hud-item" id="particleDisplay">-- 粒子</span>
+  </div>
+  <div id="hint">✦ 粒子跟随人脸实时变化 ✦</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.1/dist/face-landmarks-detection.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633550819/face_mesh.js"></script>
+
+  <script>
+    (function(){
+      'use strict';
+      const v=document.getElementById('video'), c=document.getElementById('canvas'), ctx=c.getContext('2d');
+      const ui=document.getElementById('ui'), startBtn=document.getElementById('startBtn');
+      const statusMsg=document.getElementById('statusMsg'), loadWrap=document.getElementById('loadWrap'), loadBar=document.getElementById('loadBar');
+      const fpsD=document.getElementById('fpsDisplay'), particleD=document.getElementById('particleDisplay');
+      const hint=document.getElementById('hint'), hud=document.getElementById('hud');
+      let detector=null, runId=null, running=false, pts=[], tgt=[], faceDetected=false, noFaceCount=0, w, h;
+      const COUNT=3000, SPEED=0.04;
+
+      function resize(){
+        const dpr=Math.min(devicePixelRatio||1,2);
+        w=innerWidth; h=innerHeight;
+        c.width=w*dpr; c.height=h*dpr;
+        c.style.width=w+'px'; c.style.height=h+'px';
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+      }
+      addEventListener('resize',resize);
+      addEventListener('orientationchange',()=>setTimeout(resize,300));
+      resize();
+
+      function makeParticles(){
+        pts=[];
+        for(let i=0;i<COUNT;i++){
+          const hue=200+Math.sin(i/COUNT*Math.PI*2)*30+Math.random()*20;
+          pts.push({x:Math.random()*w,y:Math.random()*h,sz:Math.random()*2.8+0.8,sp:Math.random()*0.6+0.3,hue:hue,sat:60+Math.random()*30,lig:45+Math.random()*30,ph:Math.random()*Math.PI*2,ns:Math.random()*1000});
+        }
+      }
+      function spreadTargets(){tgt=[];for(let i=0;i<COUNT;i++)tgt.push({x:Math.random()*w,y:Math.random()*h});faceDetected=false;}
+
+      const FACE_KEYS=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10,66,70,63,105,66,107,55,65,52,53,46,70,63,105,104,158,157,173,133,155,154,153,145,144,163,7,263,249,390,373,374,380,381,382,362,263,33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,33,362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398,362,61,146,91,181,84,17,314,405,321,375,291,308,324,318,402,317,14,87,178,88,95,78,191,80,81,82,13,312,311,310,415,308,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67];
+
+      function getFacePoints(landmarks){
+        const res=[];
+        for(const idx of FACE_KEYS){
+          if(idx<landmarks.length){
+            const lm=landmarks[idx];
+            res.push({x:(1-lm.x)*w,y:lm.y*h});
+          }
+        }
+        return res;
+      }
+
+      function interp(ptsIn,n){
+        if(!ptsIn.length)return[];
+        const r=[];
+        for(let i=0;i<n;i++){
+          const t=(i/n)*ptsIn.length,s=Math.floor(t)%ptsIn.length,f=t-Math.floor(t),a=ptsIn[s],b=ptsIn[(s+1)%ptsIn.length];
+          r.push({x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f});
+        }
+        return r;
+      }
+
+      function fillFace(landmarks,n){
+        let mx=Infinity,my=Infinity,Mx=-Infinity,My=-Infinity;
+        const idxs=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,54,55,56,57,58,59,60,61,62,63,64,65,66,67,48,49,50,51,52,53];
+        for(const i of idxs){
+          if(i<landmarks.length){const p=landmarks[i],x=(1-p.x)*w,y=p.y*h;if(x<mx)mx=x;if(y<my)my=y;if(x>Mx)Mx=x;if(y>My)My=y;}
+        }
+        const cx=(mx+Mx)/2,cy=(my+My)/2,rx=(Mx-mx)/2,ry=(My-my)/2,r=[];
+        for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,d=Math.sqrt(Math.random())*0.95;r.push({x:cx+Math.cos(a)*d*rx,y:cy+Math.sin(a)*d*ry*1.15});}
+        return r;
+      }
+
+      function updateTargets(landmarks){
+        const outline=getFacePoints(landmarks),interpPts=interp(outline,Math.floor(COUNT*0.45)),fill=fillFace(landmarks,Math.floor(COUNT*0.55)),all=[...interpPts,...fill];
+        while(all.length<COUNT){const p=all[Math.floor(Math.random()*all.length)];all.push({x:p.x+(Math.random()-.5)*8,y:p.y+(Math.random()-.5)*8});}
+        tgt=all.slice(0,COUNT);faceDetected=true;
+      }
+
+      function draw(time){
+        ctx.clearRect(0,0,w,h);
+        const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*.6);
+        g.addColorStop(0,'#0a0a1e');g.addColorStop(1,'#000003');
+        ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+        if(!faceDetected&&running){ctx.fillStyle='rgba(255,255,255,.06)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('请将脸对准摄像头',w/2,h/2-20);}
+        for(let i=0;i<pts.length;i++){
+          const p=pts[i],t=tgt[i]||{x:w/2,y:h/2},dx=t.x-p.x,dy=t.y-p.y,dist=Math.sqrt(dx*dx+dy*dy);
+          if(dist>.5){const s=p.sp*SPEED,nx=Math.sin(time*.001+p.ns)*.2,ny=Math.cos(time*.001+p.ns)*.2;p.x+=(dx/(dist+1))*s+nx;p.y+=(dy/(dist+1))*s+ny;}
+          else{p.x+=Math.sin(time*.002+p.ph)*.1;p.y+=Math.cos(time*.002+p.ph)*.1;}
+          ctx.globalAlpha=faceDetected?.85:.25;
+          ctx.fillStyle=`hsla(${p.hue+Math.sin(time*.0005+p.ph)*5},${p.sat}%,${p.lig+Math.sin(time*.001+p.ph)*8}%,.85)`;
+          ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fill();
+          if(faceDetected&&i%12===0&&dist<.8){
+            ctx.globalAlpha=.025;ctx.strokeStyle=`hsla(${p.hue},${p.sat}%,${p.lig}%,.3)`;ctx.lineWidth=.4;
+            for(let j=i+1;j<Math.min(i+15,pts.length);j+=2){const p2=pts[j],d2x=p2.x-p.x,d2y=p2.y-p.y;if(d2x*d2x+d2y*d2y<30){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();}}
+          }
+        }
+        ctx.globalAlpha=1;if(faceDetected)particleD.textContent=`${pts.length} 粒子`;
+      }
+
+      let frameCnt=0,lastFpsTime=0;
+      async function loop(time){
+        if(!running)return;
+        try{
+          if(v.readyState>=2&&detector){
+            const det=await detector.estimateFaces(v);
+            if(det&&det.length>0&&det[0].keypoints&&det[0].keypoints.length>0){
+              updateTargets(det[0].keypoints);noFaceCount=0;
+              hint.textContent='✦ 粒子随你而动 ✦';hint.style.color='rgba(100,200,255,.5)';
+            }else{
+              noFaceCount++;
+              if(noFaceCount>8&&faceDetected){for(let i=0;i<tgt.length;i++){tgt[i].x+=(Math.random()-.5)*15;tgt[i].y+=(Math.random()-.5)*15;}}
+              if(noFaceCount===15){spreadTargets();hint.textContent='👤 未检测到人脸...';hint.style.color='rgba(255,255,255,.2)';}
+            }
+          }
+          draw(time);frameCnt++;
+          if(time-lastFpsTime>=1000){fpsD.textContent=`${frameCnt} FPS`;frameCnt=0;lastFpsTime=time;}
+        }catch(e){draw(time);}
+        runId=requestAnimationFrame(loop);
+      }
+
+      async function start(){
+        try{
+          startBtn.disabled=true;startBtn.textContent='⏳ 启动中...';statusMsg.innerHTML='正在启动摄像头...';
+          const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
+          v.srcObject=stream;
+          await new Promise(r=>{v.onloadedmetadata=()=>{v.play();r()};});
+          statusMsg.innerHTML='正在加载人脸模型...';loadWrap.style.display='block';
+          let prog=0;const progInt=setInterval(()=>{if(prog<85){prog+=Math.random()*12;loadBar.style.width=Math.min(prog,85)+'%';}},200);
+          detector=await faceLandmarksDetection.createDetector(faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,{runtime:'mediapipe',solutionPath:'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633550819',maxFaces:1});
+          clearInterval(progInt);loadBar.style.width='100%';await new Promise(r=>setTimeout(r,300));
+          ui.classList.add('hidden');hud.classList.add('show');hint.classList.add('show');
+          makeParticles();spreadTargets();running=true;lastFpsTime=performance.now();runId=requestAnimationFrame(loop);
+        }catch(e){
+          console.error(e);startBtn.disabled=false;startBtn.textContent='📷 重试';
+          if(e.name==='NotAllowedError')statusMsg.innerHTML='摄像头权限被拒绝<br>请在 Safari 设置中开启摄像头权限';
+          else if(e.name==='NotFoundError')statusMsg.innerHTML='未找到摄像头设备';
+          else statusMsg.innerHTML='启动失败: '+e.message;
+          loadWrap.style.display='none';
+        }
+      }
+      startBtn.addEventListener('click',start);
+    })();
+  </script>
+</body>
+</html>
